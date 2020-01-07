@@ -158,15 +158,49 @@ def kabsch_fit(P, Q, W=None):
     P : array
         (N,D) matrix, where N is points and D is dimension,
         rotated and translated.
+        
+    U: array
+        (D,D) matrix, where D is dimension. This is
+        the rotation matrix.
+    QC array
+        (1,D) array, centroid of Q matrix to be added to
+        new points post rotation by U.
     """
-    if W is not None:
-        P = kabsch_weighted_fit(P, Q, W, rmsd=False)
-    else:
-        QC = centroid(Q)
-        Q = Q - QC
-        P = P - centroid(P)
-        P = kabsch_rotate(P, Q) + QC
-    return P
+    # calculate centroid of both vectors points
+    QC = Q.mean(axis=0)
+    PC = P.mean(axis=0)
+    
+    # calculate new Q & P centered at the origin
+    Q = Q - QC
+    P = P - PC
+    
+    # Computation of the covariance matrix
+    C = np.dot(np.transpose(P), Q)
+
+    # Computation of the optimal rotation matrix
+    # This can be done using singular value decomposition (SVD)
+    # Getting the sign of the det(V)*(W) to decide
+    # whether we need to correct our rotation matrix to ensure a
+    # right-handed coordinate system.
+    # And finally calculating the optimal rotation matrix U
+    # see http://en.wikipedia.org/wiki/Kabsch_algorithm
+    V, S, W = np.linalg.svd(C)
+    d = (np.linalg.det(V) * np.linalg.det(W)) < 0.0
+
+    if d:
+        S[-1] = -S[-1]
+        V[:, -1] = -V[:, -1]
+
+    # Create Rotation matrix U
+    U = np.dot(V, W)
+    
+    # Rotate P
+    P = np.dot(P, U)
+    
+    # Calculate new points
+    P = P + QC
+    
+    return P, U, QC
 
 
 def kabsch(P, Q):
